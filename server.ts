@@ -1,13 +1,12 @@
 /**
  * Dedicated Realtime WebSocket Server for WA Rich Game Multiplayer
+ * 100% Native Node.js HTTP (Zero Express dependency, Zero ERESOLVE issue)
  * Production Hardened for Pterodactyl, Node 22, and AI Studio
  */
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import express from 'express';
-import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { RoomManager } from './src/server/roomManager.js';
 import { SocketHandler } from './src/server/socketHandler.js';
 import { ConsoleManager } from './src/server/consoleManager.js';
@@ -25,8 +24,6 @@ process.on('uncaughtException', (err: Error) => {
 process.on('unhandledRejection', (reason: unknown) => {
   console.error('[FATAL_PREVENTED] Unhandled Rejection:', reason);
 });
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,148 +52,142 @@ const heartbeatMs = process.env.HEARTBEAT_INTERVAL
   ? parseInt(process.env.HEARTBEAT_MS, 10)
   : 30000;
 
-const app = express();
-app.use(express.json());
-
 const roomManager = new RoomManager();
-const server = http.createServer(app);
 
-// Initialize Socket Handler
-const socketHandler = new SocketHandler(server, roomManager, {
-  heartbeatIntervalMs: heartbeatMs,
-  maxPayloadBytes: 64 * 1024, // 64 KB limit
-  logger: (tag, msg) => {
-    if (consoleManager) {
-      consoleManager.log(tag, msg);
-    } else {
-      console.log(`[${tag}] ${msg}`);
-    }
-  },
-});
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+};
 
-let consoleManager: ConsoleManager;
+// Vite dev server reference if loaded
+let viteDevServer: any = null;
 
-// 1. Core Health Endpoint
-app.get('/health', (_req, res) => {
+// Native HTTP Server (No Express needed)
+const server = http.createServer(async (req, res) => {
   try {
-    const mem = process.memoryUsage();
-    const actualPort = (server.address() as { port: number })?.port || targetPort;
-    res.status(200).json({
-      status: 'ok',
-      service: 'WA Rich Game Socket Server',
-      uptime: Math.floor(process.uptime()),
-      timestamp: Date.now(),
-      version: '1.0.0',
-      node: process.version,
-      port: actualPort,
-      clients: roomManager.getClientCount(),
-      rooms: roomManager.getRoomCount(),
-      memory: {
-        rssMB: Math.round((mem.rss / 1024 / 1024) * 100) / 100,
-        heapUsedMB: Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100,
-        heapTotalMB: Math.round((mem.heapTotal / 1024 / 1024) * 100) / 100,
-      },
-    });
-  } catch (err: unknown) {
-    res.status(500).json({ status: 'error', message: String(err) });
-  }
-});
+    const hostHeader = req.headers.host || `localhost:${targetPort}`;
+    const url = new URL(req.url || '/', `http://${hostHeader}`);
+    const pathname = url.pathname;
 
-// 2. Stats API for frontend workbench
-app.get('/api/stats', (_req, res) => {
-  try {
-    if (consoleManager) {
-      res.json(consoleManager.getStats());
-    } else {
-      res.json({
-        status: 'ONLINE',
-        clientsCount: roomManager.getClientCount(),
-        roomsCount: roomManager.getRoomCount(),
-      });
-    }
-  } catch (err: unknown) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-// 3. Rooms API for inspect
-app.get('/api/rooms', (_req, res) => {
-  try {
-    const rooms = roomManager.getAllRooms().map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt,
-      playersCount: r.players.size,
-      players: Array.from(r.players.values()).map((p) => ({
-        id: p.id,
-        name: p.name,
-        state: p.state,
-        joinedAt: p.joinedAt,
-        lastUpdatedAt: p.lastUpdatedAt,
-      })),
-      roomState: r.roomState,
-    }));
-    res.json({ rooms });
-  } catch (err: unknown) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-// 4. Trigger Real Diagnostics API
-app.post('/api/test', async (_req, res) => {
-  const actualPort = (server.address() as { port: number })?.port || targetPort;
-  try {
-    const report = await runDiagnostics(actualPort, '127.0.0.1');
-    res.json(report);
-  } catch (err: unknown) {
-    res.status(500).json({
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-});
-
-// Setup Frontend Vite middleware or static files with bulletproof fallbacks
-async function setupFrontend() {
-  const isPterodactyl = process.env.PTERODACTYL === 'true' || process.env.P_SERVER_UUID !== undefined;
-  const isProduction = process.env.NODE_ENV === 'production' || isPterodactyl;
-
-  let viteMounted = false;
-
-  // Try Vite in development mode only
-  if (!isProduction) {
-    try {
-      const { createServer: createViteServer } = await import('vite');
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa',
-      });
-      app.use(vite.middlewares);
-      viteMounted = true;
-    } catch {
-      // Vite unavailable or in production headless mode, fallback smoothly
-    }
-  }
-
-  // If Vite is not mounted, check if prebuilt dist/ exists
-  const distPath = path.join(__dirname, 'dist');
-  const distIndex = path.join(distPath, 'index.html');
-  const hasDist = fs.existsSync(distIndex);
-
-  if (hasDist) {
-    app.use(express.static(distPath));
-    app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api/') || req.path === '/health') {
-        return next();
-      }
-      res.sendFile(distIndex, (err) => {
-        if (err) next();
-      });
-    });
-  } else if (!viteMounted) {
-    // Built-in status fallback page: Never throw ENOENT on Pterodactyl!
-    app.get('/', (_req, res) => {
+    // 1. Core Health Endpoint
+    if (req.method === 'GET' && pathname === '/health') {
+      const mem = process.memoryUsage();
       const actualPort = (server.address() as { port: number })?.port || targetPort;
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(`<!DOCTYPE html>
+      const data = {
+        status: 'ok',
+        service: 'WA Rich Game Socket Server',
+        uptime: Math.floor(process.uptime()),
+        timestamp: Date.now(),
+        version: '1.0.0',
+        node: process.version,
+        port: actualPort,
+        clients: roomManager.getClientCount(),
+        rooms: roomManager.getRoomCount(),
+        memory: {
+          rssMB: Math.round((mem.rss / 1024 / 1024) * 100) / 100,
+          heapUsedMB: Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100,
+          heapTotalMB: Math.round((mem.heapTotal / 1024 / 1024) * 100) / 100,
+        },
+      };
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(JSON.stringify(data));
+      return;
+    }
+
+    // 2. Stats API for frontend workbench
+    if (req.method === 'GET' && pathname === '/api/stats') {
+      const stats = consoleManager
+        ? consoleManager.getStats()
+        : {
+            status: 'ONLINE',
+            clientsCount: roomManager.getClientCount(),
+            roomsCount: roomManager.getRoomCount(),
+          };
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(stats));
+      return;
+    }
+
+    // 3. Rooms API
+    if (req.method === 'GET' && pathname === '/api/rooms') {
+      const rooms = roomManager.getAllRooms().map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        playersCount: r.players.size,
+        players: Array.from(r.players.values()).map((p) => ({
+          id: p.id,
+          name: p.name,
+          state: p.state,
+          joinedAt: p.joinedAt,
+          lastUpdatedAt: p.lastUpdatedAt,
+        })),
+        roomState: r.roomState,
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ rooms }));
+      return;
+    }
+
+    // 4. Trigger Diagnostics API
+    if (req.method === 'POST' && pathname === '/api/test') {
+      const actualPort = (server.address() as { port: number })?.port || targetPort;
+      const report = await runDiagnostics(actualPort, '127.0.0.1');
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(report));
+      return;
+    }
+
+    // 5. If Vite dev server is running, forward to it
+    if (viteDevServer) {
+      viteDevServer.middlewares(req, res, () => {
+        res.writeHead(404);
+        res.end('Not Found');
+      });
+      return;
+    }
+
+    // 6. Serve static files from dist/ if built
+    const distPath = path.join(__dirname, 'dist');
+    const distIndex = path.join(distPath, 'index.html');
+    const hasDist = fs.existsSync(distIndex);
+
+    if (hasDist) {
+      let safePath = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[\/\\])+/, '');
+      if (safePath === '/' || safePath === '') {
+        safePath = '/index.html';
+      }
+      const filePath = path.join(distPath, safePath);
+
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType });
+        fs.createReadStream(filePath).pipe(res);
+        return;
+      }
+
+      // SPA fallback to dist/index.html
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      fs.createReadStream(distIndex).pipe(res);
+      return;
+    }
+
+    // 7. Built-in Fallback Status HTML (No ENOENT crash on fresh Pterodactyl!)
+    const actualPort = (server.address() as { port: number })?.port || targetPort;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -233,13 +224,48 @@ Heartbeat : OK</pre>
   </div>
 </body>
 </html>`);
-    });
+  } catch (err: unknown) {
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Internal Server Error: ' + (err instanceof Error ? err.message : String(err)));
+  }
+});
+
+// Initialize Socket Handler directly on native HTTP server
+const socketHandler = new SocketHandler(server, roomManager, {
+  heartbeatIntervalMs: heartbeatMs,
+  maxPayloadBytes: 64 * 1024, // 64 KB limit
+  logger: (tag, msg) => {
+    if (consoleManager) {
+      consoleManager.log(tag, msg);
+    } else {
+      console.log(`[${tag}] ${msg}`);
+    }
+  },
+});
+
+let consoleManager: ConsoleManager;
+
+// Setup Frontend Vite middleware in development if available
+async function setupViteIfDev() {
+  const isPterodactyl = process.env.PTERODACTYL === 'true' || process.env.P_SERVER_UUID !== undefined;
+  const isProduction = process.env.NODE_ENV === 'production' || isPterodactyl;
+
+  if (!isProduction) {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      viteDevServer = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+    } catch {
+      // Vite not installed or in production headless mode, fallback smoothly
+    }
   }
 }
 
 // Start Server
 async function startServer() {
-  await setupFrontend();
+  await setupViteIfDev();
 
   server.listen(targetPort, host, () => {
     const addr = server.address();
@@ -280,7 +306,6 @@ function handleShutdown(signal: string) {
     });
   });
 
-  // Force close after 5 seconds if still hanging
   setTimeout(() => {
     console.error('Forced shutdown timeout exceeded. Exiting.');
     process.exit(1);
@@ -292,6 +317,5 @@ process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
 startServer().catch((err) => {
   console.error('[ERROR] Failed to start server:', err);
-  // Do not crash exit abruptly in Pterodactyl if recoverable
   setTimeout(() => process.exit(1), 1000);
 });
