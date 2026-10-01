@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.js",
-    "build:server": "esbuild server.ts --bundle --platform=node --target=node22 --format=esm --external:vite --external:bufferutil --external:utf-8-validate --outfile=server.js",
+    "build:server": "esbuild server.ts --bundle --platform=node --target=node22 --format=esm --packages=external --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=server.js",
     "build": "vite build && npm run build:server",
     "preview": "vite preview",
     "test": "tsx test-runner.ts",

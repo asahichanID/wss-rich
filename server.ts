@@ -247,7 +247,13 @@ let consoleManager: ConsoleManager;
 
 // Setup Frontend Vite middleware in development if available
 async function setupViteIfDev() {
-  const isPterodactyl = process.env.PTERODACTYL === 'true' || process.env.P_SERVER_UUID !== undefined;
+  const distIndex = path.join(__dirname, 'dist', 'index.html');
+  if (fs.existsSync(distIndex)) {
+    // Dist is already built: always serve production static files
+    return;
+  }
+
+  const isPterodactyl = process.env.PTERODACTYL === 'true' || process.env.P_SERVER_UUID !== undefined || process.env.HOME === '/home/container';
   const isProduction = process.env.NODE_ENV === 'production' || isPterodactyl;
 
   if (!isProduction) {
