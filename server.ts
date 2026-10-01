@@ -11,6 +11,7 @@ import { RoomManager } from './src/server/roomManager.js';
 import { SocketHandler } from './src/server/socketHandler.js';
 import { ConsoleManager } from './src/server/consoleManager.js';
 import { runDiagnostics } from './src/server/diagnostics.js';
+import { getDashboardHtml } from './src/server/dashboardHtml.js';
 
 // Global Crash Prevention for Pterodactyl / Node.js
 process.on('uncaughtException', (err: Error) => {
@@ -184,46 +185,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // 7. Built-in Fallback Status HTML (No ENOENT crash on fresh Pterodactyl!)
+    // 7. Built-in Rich Standalone Dashboard (Serves directly on http://medium.lynzz.id:2252)
     const actualPort = (server.address() as { port: number })?.port || targetPort;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WA Rich Game Socket Server</title>
-  <style>
-    body { background: #020617; color: #f8fafc; font-family: ui-monospace, monospace; margin: 0; padding: 2rem; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
-    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 2rem; max-width: 580px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-    h1 { color: #38bdf8; font-size: 1.3rem; margin: 0 0 1rem 0; display: flex; align-items: center; gap: 8px; }
-    .badge { background: #065f46; color: #34d399; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; border: 1px solid #059669; }
-    pre { background: #020617; padding: 1rem; border-radius: 6px; overflow-x: auto; color: #6ee7b7; border: 1px solid #1e293b; font-size: 0.85rem; line-height: 1.5; }
-    .links { margin-top: 1.25rem; font-size: 0.85rem; }
-    a { color: #818cf8; text-decoration: none; font-weight: bold; }
-    a:hover { text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>WA Rich Game Socket Server <span class="badge">ONLINE</span></h1>
-    <p style="color: #94a3b8; font-size: 0.85rem;">Pterodactyl Dedicated Realtime WebSocket Server</p>
-    <pre>╔══════════════════════════════╗
-║     GAME SOCKET SERVER       ║
-╚══════════════════════════════╝
-Status    : ONLINE
-Node      : ${process.version}
-Host      : ${host}
-Port      : ${actualPort}
-Clients   : ${roomManager.getClientCount()}
-Rooms     : ${roomManager.getRoomCount()}
-Heartbeat : OK</pre>
-    <div class="links">
-      Endpoints: <a href="/health">/health</a> &bull; <a href="/api/stats">/api/stats</a> &bull; <a href="/api/rooms">/api/rooms</a>
-    </div>
-  </div>
-</body>
-</html>`);
+    res.end(getDashboardHtml(actualPort, host, process.version));
   } catch (err: unknown) {
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('Internal Server Error: ' + (err instanceof Error ? err.message : String(err)));
