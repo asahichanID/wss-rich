@@ -42,8 +42,8 @@ if (process.env.SERVER_PORT && !isNaN(parseInt(process.env.SERVER_PORT, 10)) && 
 
 const host = process.env.HOST || process.env.SERVER_IP || '0.0.0.0';
 
-// Public URL resolution from actual environment only
-const publicUrl = process.env.APP_URL || process.env.PUBLIC_URL || 'Not configured';
+// Public URL resolution (configured for medium.lynzz.id:2252)
+const publicUrl = process.env.PUBLIC_URL || process.env.APP_URL || 'medium.lynzz.id:2252';
 
 // Heartbeat interval (default 30s)
 const heartbeatMs = process.env.HEARTBEAT_INTERVAL

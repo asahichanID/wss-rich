@@ -18,6 +18,15 @@ import {
   Coins,
   RefreshCw,
   Zap,
+  BookOpen,
+  Copy,
+  Check,
+  ExternalLink,
+  MessageSquare,
+  Sparkles,
+  Bot,
+  Globe,
+  Lock,
 } from 'lucide-react';
 
 interface ServerStats {
@@ -83,26 +92,30 @@ interface LogEntry {
 }
 
 const BOARD_TILES = [
-  { id: 0, name: 'START', type: 'start', color: 'bg-emerald-600', icon: '🚩' },
-  { id: 1, name: 'Jakarta', cost: 100, color: 'bg-blue-600', icon: '🏙️' },
-  { id: 2, name: 'Chest', type: 'chance', color: 'bg-amber-600', icon: '🎁' },
-  { id: 3, name: 'Surabaya', cost: 150, color: 'bg-blue-600', icon: '🌆' },
-  { id: 4, name: 'Tax Office', type: 'tax', color: 'bg-rose-600', icon: '💸' },
-  { id: 5, name: 'Bandung', cost: 180, color: 'bg-blue-500', icon: '🏰' },
-  { id: 6, name: 'Airport', type: 'travel', color: 'bg-sky-600', icon: '✈️' },
-  { id: 7, name: 'Bali', cost: 240, color: 'bg-indigo-600', icon: '🏝️' },
-  { id: 8, name: 'Casino', type: 'casino', color: 'bg-purple-600', icon: '🎰' },
-  { id: 9, name: 'Medan', cost: 260, color: 'bg-indigo-600', icon: '🕌' },
-  { id: 10, name: 'Electric Co', cost: 200, color: 'bg-yellow-600', icon: '⚡' },
-  { id: 11, name: 'Makassar', cost: 300, color: 'bg-cyan-600', icon: '⛵' },
+  { id: 0, name: 'START', type: 'start', cost: 0, color: 'bg-emerald-600', icon: '🚩', reward: '+200k' },
+  { id: 1, name: 'Jakarta', type: 'property', cost: 150, color: 'bg-blue-600', icon: '🏙️', rent: '50k' },
+  { id: 2, name: 'Chest', type: 'chance', cost: 0, color: 'bg-amber-600', icon: '🎁', reward: 'Acak' },
+  { id: 3, name: 'Surabaya', type: 'property', cost: 180, color: 'bg-blue-600', icon: '🌆', rent: '60k' },
+  { id: 4, name: 'Kantor Pajak', type: 'tax', cost: 100, color: 'bg-rose-600', icon: '💸', reward: '-100k' },
+  { id: 5, name: 'Bandung', type: 'property', cost: 200, color: 'bg-blue-500', icon: '🏰', rent: '70k' },
+  { id: 6, name: 'Bandara', type: 'travel', cost: 120, color: 'bg-sky-600', icon: '✈️', reward: 'Fly' },
+  { id: 7, name: 'Bali', type: 'property', cost: 280, color: 'bg-indigo-600', icon: '🏝️', rent: '90k' },
+  { id: 8, name: 'Kasino', type: 'casino', cost: 0, color: 'bg-purple-600', icon: '🎰', reward: '50/50' },
+  { id: 9, name: 'Medan', type: 'property', cost: 220, color: 'bg-indigo-600', icon: '🕌', rent: '75k' },
+  { id: 10, name: 'PLN Pusat', type: 'utility', cost: 210, color: 'bg-yellow-600', icon: '⚡', rent: '65k' },
+  { id: 11, name: 'Makassar', type: 'property', cost: 300, color: 'bg-cyan-600', icon: '⛵', rent: '100k' },
 ];
 
 const PLAYER_COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'board' | 'tester' | 'console' | 'diagnostics'>('board');
+  const [activeTab, setActiveTab] = useState<'board' | 'guide' | 'tester' | 'diagnostics' | 'console'>('board');
   const [serverStats, setServerStats] = useState<ServerStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+
+  // Connection Targets
+  const [serverTarget, setServerTarget] = useState<'local' | 'production'>('local');
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   // WebSocket Client State
   const [isConnected, setIsConnected] = useState(false);
@@ -111,15 +124,15 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   // Game Room State
-  const [roomId, setRoomId] = useState('rich_room_1');
-  const [playerId, setPlayerId] = useState(() => 'player_' + Math.floor(1000 + Math.random() * 9000));
-  const [playerName, setPlayerName] = useState(() => 'Tycoon_' + Math.floor(10 + Math.random() * 90));
+  const [roomId, setRoomId] = useState('rich_grup_wa_1');
+  const [playerId, setPlayerId] = useState(() => 'wa_' + Math.floor(1000 + Math.random() * 9000));
+  const [playerName, setPlayerName] = useState(() => 'Juragan_' + Math.floor(10 + Math.random() * 90));
   const [joinedRoom, setJoinedRoom] = useState<string | null>(null);
   const [roomPlayers, setRoomPlayers] = useState<PlayerInRoom[]>([]);
   const [myPosition, setMyPosition] = useState(0);
   const [myCash, setMyCash] = useState(1500);
 
-  // Simulating secondary bot player in same room
+  // Bot Simulator
   const [botConnected, setBotConnected] = useState(false);
   const botWsRef = useRef<WebSocket | null>(null);
   const [botPosition, setBotPosition] = useState(0);
@@ -140,6 +153,9 @@ export default function App() {
       output: 'Type "help" to see all available server console commands.',
     },
   ]);
+
+  // Code Guide selection
+  const [guideFramework, setGuideFramework] = useState<'baileys' | 'wweb' | 'protocol'>('baileys');
 
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -166,7 +182,7 @@ export default function App() {
         setServerStats(data);
       }
     } catch {
-      // server starting up or not ready
+      // server starting up
     } finally {
       setStatsLoading(false);
     }
@@ -178,15 +194,18 @@ export default function App() {
     return () => clearInterval(timer);
   }, [fetchStats]);
 
-  // Connect Main WS
+  // Connect WebSocket
   const connectWs = useCallback(() => {
     if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    addLog('system', 'CONNECTING', `Initiating connection to ${wsUrl}`);
+    const wsUrl =
+      serverTarget === 'production'
+        ? 'ws://medium.lynzz.id:2252'
+        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+
+    addLog('system', 'CONNECTING', `Connecting to ${wsUrl}`);
 
     try {
       const socket = new WebSocket(wsUrl);
@@ -194,9 +213,8 @@ export default function App() {
 
       socket.onopen = () => {
         setIsConnected(true);
-        addLog('system', 'OPEN', 'WebSocket connection established successfully.');
+        addLog('system', 'OPEN', `Connected to ${wsUrl}`);
 
-        // Periodic ping
         if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
         pingIntervalRef.current = setInterval(() => {
           if (socket.readyState === WebSocket.OPEN) {
@@ -275,13 +293,13 @@ export default function App() {
         if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       };
 
-      socket.onerror = (err) => {
-        addLog('error', 'WS_ERROR', 'WebSocket encountered an error.');
+      socket.onerror = () => {
+        addLog('error', 'WS_ERROR', 'WebSocket connection error.');
       };
     } catch (err: unknown) {
       addLog('error', 'INIT_FAILED', err instanceof Error ? err.message : String(err));
     }
-  }, [addLog]);
+  }, [addLog, serverTarget]);
 
   useEffect(() => {
     connectWs();
@@ -298,7 +316,7 @@ export default function App() {
   // Join Room
   const handleJoinRoom = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      addLog('error', 'NOT_CONNECTED', 'Cannot join room: socket is not open.');
+      addLog('error', 'NOT_CONNECTED', 'Socket is not open.');
       return;
     }
     const payload = {
@@ -310,7 +328,7 @@ export default function App() {
         position: myPosition,
         cash: myCash,
         color: PLAYER_COLORS[0],
-        lastAction: 'Joined game',
+        lastAction: 'Bergabung ke meja',
       },
     };
     wsRef.current.send(JSON.stringify(payload));
@@ -327,7 +345,7 @@ export default function App() {
     setRoomPlayers([]);
   };
 
-  // Move & Roll Dice
+  // Roll Dice & Move
   const handleRollDice = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !joinedRoom) return;
     const roll = Math.floor(Math.random() * 6) + 1;
@@ -337,14 +355,15 @@ export default function App() {
 
     if (tile.type === 'start') cashChange = 200;
     else if (tile.type === 'chance') cashChange = Math.random() > 0.5 ? 100 : -50;
-    else if (tile.type === 'tax') cashChange = -150;
+    else if (tile.type === 'tax') cashChange = -100;
     else if (tile.type === 'casino') cashChange = Math.random() > 0.6 ? 250 : -100;
+    else if (tile.type === 'property') cashChange = -30;
 
     const newCash = Math.max(0, myCash + cashChange);
     setMyPosition(nextPos);
     setMyCash(newCash);
 
-    const actionText = `Rolled ${roll} → Landed on ${tile.name} ${tile.icon} (${cashChange >= 0 ? '+' : ''}${cashChange}k)`;
+    const actionText = `Dadu: [${roll}] → Mendarat di ${tile.name} ${tile.icon} (${cashChange >= 0 ? '+' : ''}${cashChange}k)`;
 
     const payload = {
       type: 'player_state',
@@ -361,7 +380,7 @@ export default function App() {
     addLog('out', 'PLAYER_STATE', payload);
   };
 
-  // Bot Simulator (Multiplayer verification)
+  // Bot Simulator
   const toggleBot = () => {
     if (botConnected) {
       if (botWsRef.current) {
@@ -369,27 +388,30 @@ export default function App() {
         botWsRef.current = null;
       }
       setBotConnected(false);
-      addLog('system', 'BOT_DISCONNECT', 'Simulator Bot 2 disconnected.');
+      addLog('system', 'BOT_DISCONNECT', 'Bot Saingan disconnected.');
     } else {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}`;
+      const wsUrl =
+        serverTarget === 'production'
+          ? 'ws://medium.lynzz.id:2252'
+          : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+
       const botSocket = new WebSocket(wsUrl);
       botWsRef.current = botSocket;
 
       botSocket.onopen = () => {
         setBotConnected(true);
-        addLog('system', 'BOT_CONNECT', 'Simulator Bot 2 connected. Joining room...');
+        addLog('system', 'BOT_CONNECT', 'Bot Saingan masuk ke arena...');
         botSocket.send(
           JSON.stringify({
             type: 'join_room',
             roomId,
-            playerId: 'bot_tycoon_rival',
-            playerName: '🤖 Bot Rival (Rich King)',
+            playerId: 'bot_rival_sultan',
+            playerName: '🤖 Bot Sultan 62',
             state: {
               position: 0,
               cash: 1500,
               color: PLAYER_COLORS[1],
-              lastAction: 'Bot rival entered arena',
+              lastAction: 'Bot sultan memasuki arena',
             },
           })
         );
@@ -398,7 +420,7 @@ export default function App() {
       botSocket.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'player_state' && msg.playerId === 'bot_tycoon_rival') {
+          if (msg.type === 'player_state' && msg.playerId === 'bot_rival_sultan') {
             if (typeof msg.state?.position === 'number') setBotPosition(msg.state.position);
             if (typeof msg.state?.cash === 'number') setBotCash(msg.state.cash);
           }
@@ -418,7 +440,7 @@ export default function App() {
     const roll = Math.floor(Math.random() * 6) + 1;
     const nextPos = (botPosition + roll) % BOARD_TILES.length;
     const tile = BOARD_TILES[nextPos];
-    const newCash = botCash + (tile.type === 'start' ? 200 : -20);
+    const newCash = botCash + (tile.type === 'start' ? 200 : -25);
     setBotPosition(nextPos);
     setBotCash(newCash);
 
@@ -430,7 +452,7 @@ export default function App() {
           position: nextPos,
           cash: newCash,
           roll,
-          lastAction: `🤖 Bot rolled ${roll} → ${tile.name}`,
+          lastAction: `🤖 Bot Dadu [${roll}] → ${tile.name}`,
         },
       })
     );
@@ -454,18 +476,24 @@ export default function App() {
   // Send Raw Custom JSON
   const sendRawPayload = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      addLog('error', 'SOCKET_CLOSED', 'Cannot send payload: WebSocket is closed.');
+      addLog('error', 'SOCKET_CLOSED', 'WebSocket is closed.');
       return;
     }
     try {
       const parsed = JSON.parse(rawPayload);
       wsRef.current.send(JSON.stringify(parsed));
       addLog('out', parsed.type ? parsed.type.toUpperCase() : 'CUSTOM', parsed);
-    } catch (err: unknown) {
-      // Send anyway to test error resilience if user wants
+    } catch {
       wsRef.current.send(rawPayload);
-      addLog('out', 'RAW_MALFORMED', { raw: rawPayload, error: err instanceof Error ? err.message : String(err) });
+      addLog('out', 'RAW_MALFORMED', { raw: rawPayload });
     }
+  };
+
+  // Copy Helper
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedLink(id);
+    setTimeout(() => setCopiedLink(null), 2000);
   };
 
   // Console Emulator Handlers
@@ -482,23 +510,34 @@ export default function App() {
       setConsoleHistory([]);
       return;
     } else if (lower === 'help') {
-      output = `Commands: help, status, port, clients, rooms, heartbeat, memory, uptime, test, test ws, test health, room list, room info <id>, clear`;
+      output = `Perintah Console Pterodactyl:
+  status           : Cek kondisi server aktual
+  port             : Info Host, Port (${serverStats?.port || 2252}), Source
+  clients          : Daftar client terhubung
+  rooms            : Daftar room multiplayer
+  room info <id>   : Detail pemain di room tertentu
+  heartbeat        : Status ping/pong 30s
+  memory           : RAM Node.js (RSS, Heap)
+  uptime           : Waktu aktif server
+  test             : Menjalankan 8 pengujian nyata
+  test health      : Tes HTTP /health
+  clear            : Bersihkan layar console`;
     } else if (lower === 'status') {
       await fetchStats();
-      output = `Status: ONLINE | Node: ${serverStats?.nodeVersion || '22.x'} | Host: ${serverStats?.host}:${serverStats?.port} | Clients: ${serverStats?.clientsCount} | Rooms: ${serverStats?.roomsCount} | RAM: RSS ${serverStats?.memory.rssMB}MB`;
+      output = `Status: ONLINE | Node: ${serverStats?.nodeVersion || '22.x'} | Host: ${serverStats?.host}:${serverStats?.port} | Public URL: ${serverStats?.publicUrl || 'medium.lynzz.id:2252'} | Clients: ${serverStats?.clientsCount} | Rooms: ${serverStats?.roomsCount} | RAM RSS: ${serverStats?.memory.rssMB}MB`;
     } else if (lower === 'port') {
-      output = `Host: ${serverStats?.host || '0.0.0.0'} | Port: ${serverStats?.port || 3000} | Source: ${serverStats?.portSource || 'env'}`;
+      output = `Host  : 0.0.0.0\nPort  : ${serverStats?.port || 2252}\nSource: ${serverStats?.portSource || 'process.env.SERVER_PORT'}`;
     } else if (lower === 'memory') {
-      output = `Memory Breakdown:\n  RSS: ${serverStats?.memory.rssMB} MB\n  Heap Used: ${serverStats?.memory.heapUsedMB} MB\n  Heap Total: ${serverStats?.memory.heapTotalMB} MB\n  External: ${serverStats?.memory.externalMB} MB`;
+      output = `Penggunaan RAM:\n  RSS: ${serverStats?.memory.rssMB} MB\n  Heap Terpakai: ${serverStats?.memory.heapUsedMB} MB\n  Total Heap: ${serverStats?.memory.heapTotalMB} MB\n  External: ${serverStats?.memory.externalMB} MB`;
     } else if (lower === 'uptime') {
-      output = `Server Uptime: ${serverStats?.uptimeSeconds || 0} seconds`;
+      output = `Server Uptime: ${serverStats?.uptimeSeconds || 0} detik`;
     } else if (lower === 'heartbeat') {
-      output = `Heartbeat Interval: ${serverStats?.heartbeatIntervalMs || 30000}ms | Status: OK`;
+      output = `Interval Heartbeat: ${serverStats?.heartbeatIntervalMs || 30000}ms | Status: AKTIF (OK)`;
     } else if (lower.startsWith('test')) {
-      output = 'Running diagnostic tests on server...';
+      output = 'Menjalankan diagnostik otomatis pada server...';
       runFullDiagnostics();
     } else {
-      output = `Command executed on server. Type "help" for valid commands.`;
+      output = `Perintah diterima. Ketik "help" untuk daftar perintah lengkap.`;
     }
 
     setConsoleHistory((prev) => [...prev, { cmd, output }]);
@@ -515,21 +554,35 @@ export default function App() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-white tracking-wide text-sm sm:text-base">WA RICH GAME REALTIME SERVER</span>
+                <span className="font-bold text-white tracking-wide text-sm sm:text-base">WA RICH GAME SOCKET SERVER</span>
                 <span className="px-2 py-0.5 text-xs font-semibold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded">
                   ONLINE
                 </span>
                 <span className="px-1.5 py-0.5 text-xs font-semibold bg-blue-500/20 text-blue-300 rounded">
-                  Node 22 / ws
+                  Node 22
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Host: <span className="text-slate-200">{serverStats?.host || '0.0.0.0'}</span> | Port: <span className="text-amber-300 font-bold">{serverStats?.port || 3000}</span> | Public URL: <span className="text-sky-300">{serverStats?.publicUrl || 'Not configured'}</span>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Host: <span className="text-slate-200">0.0.0.0</span> &bull; Port: <span className="text-amber-300 font-bold">2252</span> &bull; Target Public: <strong className="text-sky-300 font-bold">medium.lynzz.id:2252</strong>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-3 text-xs flex-wrap">
+            {/* Quick Copy Link Box */}
+            <div className="flex items-center bg-slate-800/90 border border-slate-700 rounded px-2.5 py-1 gap-2">
+              <span className="text-slate-400">WS URL:</span>
+              <code className="text-amber-300 font-bold text-[11px]">ws://medium.lynzz.id:2252</code>
+              <button
+                onClick={() => copyToClipboard('ws://medium.lynzz.id:2252', 'ws')}
+                className="text-slate-400 hover:text-white transition"
+                title="Copy WS URL"
+              >
+                {copiedLink === 'ws' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* Socket Status indicator */}
             <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700">
               <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
               <span className="text-slate-300">WS:</span>
@@ -562,43 +615,55 @@ export default function App() {
 
       {/* Navigation Tabs */}
       <div className="bg-slate-900 border-b border-slate-800 px-4">
-        <div className="max-w-7xl mx-auto flex gap-2">
+        <div className="max-w-7xl mx-auto flex flex-wrap gap-1 sm:gap-2">
           <button
             onClick={() => setActiveTab('board')}
-            className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+            className={`px-3 sm:px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
               activeTab === 'board'
                 ? 'border-indigo-500 text-indigo-400 bg-slate-800/50'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Dice5 className="w-4 h-4" />
-            Live Multiplayer Board
+            Live Game Board
+          </button>
+          <button
+            onClick={() => setActiveTab('guide')}
+            className={`px-3 sm:px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+              activeTab === 'guide'
+                ? 'border-emerald-500 text-emerald-400 bg-slate-800/50'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-emerald-400" />
+            <span className="font-bold text-white">Tata Cara Sambung Bot WA</span>
+            <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 text-[10px] rounded">PENTING</span>
           </button>
           <button
             onClick={() => setActiveTab('tester')}
-            className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+            className={`px-3 sm:px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
               activeTab === 'tester'
                 ? 'border-indigo-500 text-indigo-400 bg-slate-800/50'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Radio className="w-4 h-4" />
-            Protocol & Sandbox
+            Sandbox & Raw JSON
           </button>
           <button
             onClick={() => setActiveTab('diagnostics')}
-            className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+            className={`px-3 sm:px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
               activeTab === 'diagnostics'
                 ? 'border-indigo-500 text-indigo-400 bg-slate-800/50'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            Test Wajib Diagnostics
+            Test Wajib (Diagnostic)
           </button>
           <button
             onClick={() => setActiveTab('console')}
-            className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+            className={`px-3 sm:px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
               activeTab === 'console'
                 ? 'border-indigo-500 text-indigo-400 bg-slate-800/50'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -612,7 +677,499 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto w-full p-4 flex-1 flex flex-col gap-4">
-        {/* TAB 1: LIVE MULTIPLAYER GAME BOARD */}
+
+        {/* TAB: TATA CARA SAMBUNG KE FITUR GAME RICH WA */}
+        {activeTab === 'guide' && (
+          <div className="flex flex-col gap-4">
+            {/* Guide Header Banner */}
+            <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-indigo-950/70 border border-emerald-500/30 p-4 rounded">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-emerald-400" />
+                    Panduan Lengkap Menghubungkan WebSocket ke Bot WhatsApp (WA Rich Game)
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Socket Server ini bertindak sebagai <strong>Authoritative Realtime Engine</strong> (mengatur room, giliran lempar dadu, saldo uang, dan kepemilikan aset) agar bot WA tinggal mengirim aksi dan menerima siaran event ke grup.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href="http://medium.lynzz.id:2252/health"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 flex items-center gap-1.5 transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                    Tes Health Server
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Connection Info Box */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-slate-900 border border-slate-800 p-3 rounded">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">1. Alamat WebSocket Server</span>
+                <div className="flex items-center justify-between mt-1">
+                  <code className="text-sm font-bold text-amber-300">ws://medium.lynzz.id:2252</code>
+                  <button
+                    onClick={() => copyToClipboard('ws://medium.lynzz.id:2252', 'g1')}
+                    className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+                  >
+                    {copiedLink === 'g1' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">Gunakan URL ini di dalam constructor <code>new WebSocket(...)</code> pada bot Anda.</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-3 rounded">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">2. Alamat HTTP Check / API</span>
+                <div className="flex items-center justify-between mt-1">
+                  <code className="text-sm font-bold text-sky-300">http://medium.lynzz.id:2252/health</code>
+                  <button
+                    onClick={() => copyToClipboard('http://medium.lynzz.id:2252/health', 'g2')}
+                    className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+                  >
+                    {copiedLink === 'g2' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">Untuk pemantauan status online server secara berkala.</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-3 rounded">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">3. Konsep Ruang Game (Room)</span>
+                <div className="text-xs text-white font-bold mt-1">1 Grup WA = 1 Room ID</div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Gunakan JID grup WA (contoh: <code>120363xxx@g.us</code>) sebagai <code>roomId</code> agar pemain di grup tersebut terisolasi dalam room yang sama.
+                </p>
+              </div>
+            </div>
+
+            {/* Framework Switcher & Ready-to-copy code */}
+            <div className="bg-slate-900 border border-slate-800 rounded overflow-hidden">
+              <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">Pilih Template Integrasi Script Bot:</span>
+                </div>
+
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setGuideFramework('baileys')}
+                    className={`px-3 py-1 rounded text-xs font-bold transition ${
+                      guideFramework === 'baileys'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    Baileys (@whiskeysockets/baileys)
+                  </button>
+                  <button
+                    onClick={() => setGuideFramework('wweb')}
+                    className={`px-3 py-1 rounded text-xs font-bold transition ${
+                      guideFramework === 'wweb'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    WhatsApp-Web.js
+                  </button>
+                  <button
+                    onClick={() => setGuideFramework('protocol')}
+                    className={`px-3 py-1 rounded text-xs font-bold transition ${
+                      guideFramework === 'protocol'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    Protokol JSON (Spesifikasi)
+                  </button>
+                </div>
+              </div>
+
+              {/* Code Content */}
+              <div className="p-4 bg-slate-950 font-mono text-xs overflow-x-auto relative">
+                {guideFramework === 'baileys' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] text-slate-400">
+                        File: <code>plugins/rich-game.js</code> atau <code>handler.js</code> pada bot Baileys
+                      </span>
+                      <button
+                        onClick={() =>
+                          copyToClipboard(
+                            `import WebSocket from 'ws';
+
+// 1. Inisialisasi Koneksi ke Server WebSocket WA Rich Game
+const WS_URL = 'ws://medium.lynzz.id:2252';
+let socket = null;
+
+function connectSocket() {
+  socket = new WebSocket(WS_URL);
+
+  socket.on('open', () => {
+    console.log('[RICH-GAME] Terhubung ke WebSocket server medium.lynzz.id:2252');
+    // Heartbeat berkala agar koneksi tidak terputus
+    setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      }
+    }, 25000);
+  });
+
+  socket.on('message', async (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      handleServerEvent(msg);
+    } catch (e) {
+      console.error('[RICH-GAME] Error parsing data:', e);
+    }
+  });
+
+  socket.on('close', () => {
+    console.log('[RICH-GAME] Terputus. Reconnecting dalam 3 detik...');
+    setTimeout(connectSocket, 3000);
+  });
+}
+
+connectSocket();
+
+// 2. Handler Event Siaran dari Server ke Grup WA
+function handleServerEvent(msg) {
+  // msg.roomId adalah JID grup WA (contoh: 120363xxx@g.us)
+  if (!msg.roomId) return;
+
+  switch (msg.type) {
+    case 'player_joined':
+      // Kirim pesan ke grup bahwa ada yang bergabung
+      // conn.sendMessage(msg.roomId, { text: \`🎮 @\${msg.player.id.split('@')[0]} bergabung ke permainan!\`, mentions: [msg.player.id] });
+      break;
+
+    case 'player_state':
+      // Kirim update giliran atau perpindahan petak ke grup
+      // conn.sendMessage(msg.roomId, { text: \`🎲 \${msg.state.lastAction}\` });
+      break;
+
+    case 'player_left':
+      // conn.sendMessage(msg.roomId, { text: \`🚪 Pemain \${msg.playerId} telah keluar dari meja.\` });
+      break;
+  }
+}
+
+// 3. Command Handler yang dipanggil saat user mengetik di chat WA
+export async function handleRichCommand(conn, m) {
+  const text = m.text || '';
+  const senderId = m.sender; // Nomor pengirim
+  const senderName = m.pushName || 'Pemain';
+  const groupId = m.chat; // JID Grup WA
+
+  // Command: /rich join
+  if (text.startsWith('/rich join') || text.startsWith('.rich join')) {
+    socket.send(JSON.stringify({
+      type: 'join_room',
+      roomId: groupId,
+      playerId: senderId,
+      playerName: senderName,
+      state: { cash: 1500, position: 0 }
+    }));
+    return m.reply(\`✅ Permintaan join room dikirim untuk \${senderName}!\`);
+  }
+
+  // Command: /rich roll
+  if (text.startsWith('/rich roll') || text.startsWith('.rich roll')) {
+    const dice = Math.floor(Math.random() * 6) + 1;
+    socket.send(JSON.stringify({
+      type: 'player_state',
+      roomId: groupId,
+      state: {
+        roll: dice,
+        lastAction: \`@\${senderId.split('@')[0]} melempar dadu: [\${dice}]\`
+      }
+    }));
+    return;
+  }
+
+  // Command: /rich leave
+  if (text.startsWith('/rich leave')) {
+    socket.send(JSON.stringify({
+      type: 'leave_room',
+      roomId: groupId
+    }));
+    return m.reply('🚪 Anda keluar dari room.');
+  }
+}`,
+                            'c_baileys'
+                          )
+                        }
+                        className="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 flex items-center gap-1.5 transition"
+                      >
+                        {copiedLink === 'c_baileys' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        Salin Kode Baileys
+                      </button>
+                    </div>
+
+                    <pre className="text-emerald-400 text-[11px] leading-relaxed overflow-x-auto p-3 bg-slate-900 border border-slate-800 rounded">
+{`import WebSocket from 'ws';
+
+// 1. Hubungkan ke WebSocket Server Pterodactyl Anda
+const WS_URL = 'ws://medium.lynzz.id:2252';
+let socket = null;
+
+function connectSocket() {
+  socket = new WebSocket(WS_URL);
+
+  socket.on('open', () => {
+    console.log('[RICH-GAME] Terhubung ke WebSocket server medium.lynzz.id:2252');
+    // Heartbeat otomatis 25 detik
+    setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      }
+    }, 25000);
+  });
+
+  socket.on('message', async (data) => {
+    const msg = JSON.parse(data.toString());
+    handleServerEvent(msg);
+  });
+
+  socket.on('close', () => {
+    console.log('[RICH-GAME] Terputus. Reconnecting dalam 3 detik...');
+    setTimeout(connectSocket, 3000);
+  });
+}
+
+connectSocket();
+
+// 2. Tangani Event dari Server (Siarkan ke Grup WA)
+function handleServerEvent(msg) {
+  if (!msg.roomId) return; // msg.roomId adalah JID Grup WA (contoh: 120363xxx@g.us)
+
+  switch (msg.type) {
+    case 'player_joined':
+      // conn.sendMessage(msg.roomId, { text: \`🎮 @\${msg.player.id.split('@')[0]} masuk ke room!\` });
+      break;
+    case 'player_state':
+      // conn.sendMessage(msg.roomId, { text: \`🎲 \${msg.state.lastAction}\` });
+      break;
+    case 'player_left':
+      // conn.sendMessage(msg.roomId, { text: \`🚪 @\${msg.playerId.split('@')[0]} keluar dari meja.\` });
+      break;
+  }
+}
+
+// 3. Tangani Pesan dari Pengguna di Grup WA
+export async function onMessage(conn, m) {
+  const text = m.text || '';
+  const sender = m.sender;
+  const groupJid = m.chat;
+
+  if (text === '.rich join') {
+    socket.send(JSON.stringify({
+      type: 'join_room',
+      roomId: groupJid,
+      playerId: sender,
+      playerName: m.pushName || 'Pemain',
+      state: { cash: 1500, position: 0 }
+    }));
+  } else if (text === '.rich roll') {
+    const roll = Math.floor(Math.random() * 6) + 1;
+    socket.send(JSON.stringify({
+      type: 'player_state',
+      roomId: groupJid,
+      state: { roll, lastAction: \`Lempar dadu: [\${roll}]\` }
+    }));
+  }
+}`}
+                    </pre>
+                  </div>
+                )}
+
+                {guideFramework === 'wweb' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] text-slate-400">
+                        File: <code>richGameModule.js</code> untuk WhatsApp-Web.js
+                      </span>
+                      <button
+                        onClick={() =>
+                          copyToClipboard(
+                            `const WebSocket = require('ws');
+const WS_URL = 'ws://medium.lynzz.id:2252';
+
+const ws = new WebSocket(WS_URL);
+
+ws.on('open', () => {
+  console.log('Bot terhubung ke server WA Rich Game');
+});
+
+ws.on('message', (raw) => {
+  const data = JSON.parse(raw.toString());
+  console.log('Event dari server game:', data);
+});
+
+// Fungsi untuk join game dari bot WA
+function joinGame(chatId, senderId, senderName) {
+  ws.send(JSON.stringify({
+    type: 'join_room',
+    roomId: chatId,
+    playerId: senderId,
+    playerName: senderName,
+    state: { cash: 1500, position: 0 }
+  }));
+}
+
+// Fungsi untuk lempar dadu
+function rollDice(chatId, senderId, diceValue) {
+  ws.send(JSON.stringify({
+    type: 'player_state',
+    roomId: chatId,
+    state: {
+      roll: diceValue,
+      lastAction: 'Lemparan dadu: ' + diceValue
+    }
+  }));
+}
+
+module.exports = { joinGame, rollDice };`,
+                            'c_wweb'
+                          )
+                        }
+                        className="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 flex items-center gap-1.5 transition"
+                      >
+                        {copiedLink === 'c_wweb' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        Salin Kode WhatsApp-Web.js
+                      </button>
+                    </div>
+
+                    <pre className="text-indigo-400 text-[11px] leading-relaxed overflow-x-auto p-3 bg-slate-900 border border-slate-800 rounded">
+{`const WebSocket = require('ws');
+const WS_URL = 'ws://medium.lynzz.id:2252';
+
+const ws = new WebSocket(WS_URL);
+
+ws.on('open', () => {
+  console.log('Bot terhubung ke server WA Rich Game medium.lynzz.id:2252');
+});
+
+ws.on('message', (raw) => {
+  const data = JSON.parse(raw.toString());
+  // Tangani event player_joined, player_state, player_left
+});
+
+function joinGame(chatId, senderId, senderName) {
+  ws.send(JSON.stringify({
+    type: 'join_room',
+    roomId: chatId,
+    playerId: senderId,
+    playerName: senderName,
+    state: { cash: 1500, position: 0 }
+  }));
+}`}
+                    </pre>
+                  </div>
+                )}
+
+                {guideFramework === 'protocol' && (
+                  <div className="space-y-3">
+                    <div className="text-slate-300 text-xs">
+                      Protokol format JSON yang dikirimkan antara Bot WhatsApp dan Server:
+                    </div>
+
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded">
+                      <div className="text-amber-400 font-bold mb-1">A. Join / Masuk Room</div>
+                      <pre className="text-slate-300 text-[11px] overflow-x-auto">
+{`// Bot Kirim ke Server:
+{
+  "type": "join_room",
+  "roomId": "12036323456789@g.us", // JID grup WA
+  "playerId": "628123456789@s.whatsapp.net",
+  "playerName": "Nama Pemain",
+  "state": { "cash": 1500, "position": 0 }
+}
+
+// Server Membalas ke Pengirim:
+{
+  "type": "room_joined",
+  "roomId": "12036323456789@g.us",
+  "playerId": "628123456789@s.whatsapp.net",
+  "players": [...]
+}
+
+// Server Menyiarkan ke Seluruh Pemain di Grup:
+{
+  "type": "player_joined",
+  "roomId": "12036323456789@g.us",
+  "player": { "id": "...", "name": "...", "state": {...} }
+}`}
+                      </pre>
+                    </div>
+
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded">
+                      <div className="text-amber-400 font-bold mb-1">B. Update State Pemain (Lempar Dadu / Beli Aset)</div>
+                      <pre className="text-slate-300 text-[11px] overflow-x-auto">
+{`// Bot Kirim ke Server saat aksi terjadi:
+{
+  "type": "player_state",
+  "roomId": "12036323456789@g.us",
+  "state": {
+    "position": 5,
+    "cash": 1300,
+    "lastAction": "Membeli petak Bandung (-200k)"
+  }
+}
+
+// Server Menyiarkan ke Seluruh Pemain di Room:
+{
+  "type": "player_state",
+  "roomId": "12036323456789@g.us",
+  "playerId": "628123456789@s.whatsapp.net",
+  "state": { "position": 5, "cash": 1300, "lastAction": "..." },
+  "timestamp": 1727789000
+}`}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step-by-Step Flow Explanation */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 bg-slate-900 border border-slate-800 rounded">
+                <div className="font-bold text-emerald-400 mb-1">Langkah 1: Koneksi Bot</div>
+                <p className="text-slate-400">
+                  Bot WA membuka 1 koneksi socket global ke <code>ws://medium.lynzz.id:2252</code> saat bot baru pertama kali menyala.
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-900 border border-slate-800 rounded">
+                <div className="font-bold text-indigo-400 mb-1">Langkah 2: Perintah Chat</div>
+                <p className="text-slate-400">
+                  Member grup mengetik <code>.rich join</code> atau <code>.rich roll</code>. Bot meneruskannya ke server dengan menyertakan JID grup.
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-900 border border-slate-800 rounded">
+                <div className="font-bold text-amber-400 mb-1">Langkah 3: Sinkronisasi</div>
+                <p className="text-slate-400">
+                  Server memproses state dan membroadcast event ke semua client dalam room tanpa delay dan tanpa beban ke database.
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-900 border border-slate-800 rounded">
+                <div className="font-bold text-rose-400 mb-1">Langkah 4: Auto-Cleanup</div>
+                <p className="text-slate-400">
+                  Bila grup selesai bermain atau pemain keluar, server otomatis menghapus room kosong sehingga memori RAM tetap hemat.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: LIVE GAME BOARD */}
         {activeTab === 'board' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
             {/* Left: Game Board & Interaction */}
@@ -622,18 +1179,18 @@ export default function App() {
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-indigo-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Room Manager</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Room Manager Simulator</span>
                   </div>
                   {joinedRoom && (
-                    <span className="text-xs px-2 py-0.5 bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 rounded">
-                      Joined Room: <strong className="text-white">{joinedRoom}</strong>
+                    <span className="text-xs px-2.5 py-0.5 bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 rounded">
+                      Room Aktif: <strong className="text-white">{joinedRoom}</strong>
                     </span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                   <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">ROOM ID</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">ROOM ID (JID GRUP)</label>
                     <input
                       type="text"
                       value={roomId}
@@ -643,7 +1200,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">PLAYER ID</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">PLAYER ID (NOMOR WA)</label>
                     <input
                       type="text"
                       value={playerId}
@@ -653,7 +1210,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">DISPLAY NAME</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">NAMA PEMAIN</label>
                     <input
                       type="text"
                       value={playerName}
@@ -690,8 +1247,8 @@ export default function App() {
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
                   <div>
                     <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                      <span>WA Rich Monopoly Board</span>
-                      <span className="text-[10px] font-normal text-slate-400">12 Tiles • Realtime Synchronized</span>
+                      <span>Papan Monopoli WA Rich Game</span>
+                      <span className="text-[10px] font-normal text-slate-400">12 Petak Nusantara &bull; Realtime Sync</span>
                     </h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -704,7 +1261,7 @@ export default function App() {
                       }`}
                     >
                       <Zap className="w-3.5 h-3.5" />
-                      {botConnected ? 'Disconnect Bot 2' : 'Spawn Bot 2 (Rival)'}
+                      {botConnected ? 'Hentikan Bot Saingan' : 'Munculkan Bot Saingan'}
                     </button>
                   </div>
                 </div>
@@ -719,7 +1276,7 @@ export default function App() {
                     return (
                       <div
                         key={tile.id}
-                        className={`border rounded p-2.5 flex flex-col justify-between transition relative overflow-hidden min-h-[90px] ${
+                        className={`border rounded p-2.5 flex flex-col justify-between transition relative overflow-hidden min-h-[95px] ${
                           isMyPosition || isBotPosition
                             ? 'border-indigo-400 bg-slate-800/90 shadow-md ring-1 ring-indigo-500/50'
                             : 'border-slate-800 bg-slate-950/60'
@@ -729,11 +1286,12 @@ export default function App() {
                           <span className="text-xs font-bold text-slate-300">
                             {tile.id}. {tile.name}
                           </span>
-                          <span className="text-sm">{tile.icon}</span>
+                          <span className="text-base">{tile.icon}</span>
                         </div>
 
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {tile.cost ? `$${tile.cost}k` : tile.type?.toUpperCase()}
+                        <div className="text-[10px] text-slate-400 mt-1 flex justify-between">
+                          <span>{tile.cost ? `$${tile.cost}k` : tile.reward}</span>
+                          {tile.rent && <span className="text-amber-400">Sewa: ${tile.rent}</span>}
                         </div>
 
                         {/* Player Tokens On Tile */}
@@ -742,14 +1300,14 @@ export default function App() {
                             <div
                               key={p.id || idx}
                               title={`${p.name} ($${p.state?.cash || 0}k)`}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-indigo-600 flex items-center gap-1"
+                              className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-indigo-600 flex items-center gap-1 shadow"
                             >
-                              <span>{p.name.slice(0, 8)}</span>
+                              <span>{p.name.slice(0, 10)}</span>
                             </div>
                           ))}
-                          {isBotPosition && !playersHere.some((p) => p.id === 'bot_tycoon_rival') && (
-                            <div className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-rose-600">
-                              🤖 Bot
+                          {isBotPosition && !playersHere.some((p) => p.id === 'bot_rival_sultan') && (
+                            <div className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-rose-600 shadow">
+                              🤖 Bot Sultan
                             </div>
                           )}
                         </div>
@@ -763,12 +1321,12 @@ export default function App() {
                   <div className="flex items-center gap-4 text-xs">
                     <div className="flex items-center gap-1.5">
                       <Coins className="w-4 h-4 text-amber-400" />
-                      <span className="text-slate-400">Your Cash:</span>
-                      <span className="font-bold text-amber-300">${myCash}k</span>
+                      <span className="text-slate-400">Saldo Anda:</span>
+                      <span className="font-bold text-amber-300 text-sm">${myCash}k</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-slate-400">Position:</span>
-                      <span className="font-bold text-white">Tile #{myPosition} ({BOARD_TILES[myPosition].name})</span>
+                      <span className="text-slate-400">Posisi:</span>
+                      <span className="font-bold text-white">Petak #{myPosition} ({BOARD_TILES[myPosition].name})</span>
                     </div>
                   </div>
 
@@ -779,7 +1337,7 @@ export default function App() {
                       className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs px-4 py-2 rounded flex items-center gap-2 shadow-lg transition"
                     >
                       <Dice5 className="w-4 h-4" />
-                      Roll Dice & Broadcast State
+                      Lempar Dadu & Broadcast State
                     </button>
 
                     {botConnected && (
@@ -787,7 +1345,7 @@ export default function App() {
                         onClick={handleBotRoll}
                         className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded flex items-center gap-1.5 transition"
                       >
-                        🤖 Bot Turn
+                        🤖 Giliran Bot
                       </button>
                     )}
                   </div>
@@ -802,15 +1360,15 @@ export default function App() {
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
                   <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-indigo-400" />
-                    Players in Room ({roomPlayers.length})
+                    Pemain di Meja ({roomPlayers.length})
                   </span>
-                  <span className="text-[10px] text-slate-500">{joinedRoom || 'No room joined'}</span>
+                  <span className="text-[10px] text-slate-400">{joinedRoom || 'Belum masuk room'}</span>
                 </div>
 
                 <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
                   {roomPlayers.length === 0 ? (
                     <div className="text-xs text-slate-500 py-3 text-center">
-                      Join a room to see active multiplayer peers.
+                      Tekan tombol <strong>Join Room</strong> untuk mulai simulasi multiplayer.
                     </div>
                   ) : (
                     roomPlayers.map((player) => (
@@ -821,7 +1379,7 @@ export default function App() {
                         <div>
                           <div className="font-bold text-slate-200">{player.name}</div>
                           <div className="text-[10px] text-slate-400">
-                            ID: {player.id} | Tile #{player.state?.position ?? 0}
+                            ID: {player.id} &bull; Petak #{player.state?.position ?? 0}
                           </div>
                           {player.state?.lastAction && (
                             <div className="text-[10px] text-emerald-400 truncate max-w-[180px]">
@@ -849,13 +1407,13 @@ export default function App() {
                     onClick={() => setLogs([])}
                     className="text-[10px] text-slate-500 hover:text-slate-300 underline"
                   >
-                    Clear
+                    Hapus
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 text-[11px] font-mono">
                   {logs.length === 0 ? (
-                    <div className="text-slate-600 text-center py-4">Listening for WebSocket packets...</div>
+                    <div className="text-slate-600 text-center py-4">Mendengarkan paket WebSocket...</div>
                   ) : (
                     logs.map((log) => (
                       <div
@@ -886,19 +1444,19 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: PROTOCOL & SANDBOX */}
+        {/* TAB: PROTOCOL & SANDBOX */}
         {activeTab === 'tester' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
             <div className="bg-slate-900 border border-slate-800 p-4 rounded flex flex-col">
               <h2 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
                 <Send className="w-4 h-4 text-indigo-400" />
-                Raw JSON Packet Sender
+                Pengirim Paket JSON Manual (Sandbox)
               </h2>
               <p className="text-xs text-slate-400 mb-3">
-                Send manual JSON packets directly to the WebSocket server to test protocol handlers and resilience against malformed inputs.
+                Kirimkan payload custom langsung ke socket server untuk menguji respon dan ketahanan server.
               </p>
 
-              <div className="flex gap-2 mb-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 <button
                   onClick={() => setRawPayload(JSON.stringify({ type: 'ping', timestamp: Date.now() }, null, 2))}
                   className="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700"
@@ -911,10 +1469,10 @@ export default function App() {
                       JSON.stringify(
                         {
                           type: 'join_room',
-                          roomId: 'rich_arena',
-                          playerId: 'custom_player_99',
-                          playerName: 'Commander Rich',
-                          state: { score: 9999, level: 10 },
+                          roomId: 'rich_grup_wa_1',
+                          playerId: '62812345678@s.whatsapp.net',
+                          playerName: 'Sultan Medan',
+                          state: { cash: 2000, position: 0 },
                         },
                         null,
                         2
@@ -931,7 +1489,7 @@ export default function App() {
                       JSON.stringify(
                         {
                           type: 'player_state',
-                          state: { x: 50, y: 75, action: 'BUY_PROPERTY', propertyId: 'Jakarta' },
+                          state: { position: 7, cash: 1200, lastAction: 'Beli Bali ($280k)' },
                         },
                         null,
                         2
@@ -940,13 +1498,7 @@ export default function App() {
                   }
                   className="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700"
                 >
-                  Template: State Delta
-                </button>
-                <button
-                  onClick={() => setRawPayload('{ "type": "broken_json", corrupt: ')}
-                  className="px-2.5 py-1 text-[11px] bg-rose-900/40 hover:bg-rose-900/60 text-rose-300 rounded border border-rose-800"
-                >
-                  Test Bad JSON
+                  Template: Player State
                 </button>
               </div>
 
@@ -963,7 +1515,7 @@ export default function App() {
                 className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold py-2 px-4 rounded flex items-center justify-center gap-2 transition"
               >
                 <Send className="w-3.5 h-3.5" />
-                Dispatch Packet
+                Kirim Paket ke Server
               </button>
             </div>
 
@@ -971,41 +1523,32 @@ export default function App() {
             <div className="bg-slate-900 border border-slate-800 p-4 rounded overflow-y-auto">
               <h2 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                WA Rich Game WebSocket Protocol Specification
+                Spesifikasi Event JSON
               </h2>
 
-              <div className="space-y-4 text-xs text-slate-300">
+              <div className="space-y-3 text-xs text-slate-300">
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded">
-                  <div className="font-bold text-indigo-400 mb-1">1. Ping / Heartbeat</div>
+                  <div className="font-bold text-indigo-400 mb-1">1. Ping & Pong</div>
                   <pre className="text-[11px] text-slate-400 overflow-x-auto">
-{`Client  → { "type": "ping", "timestamp": 1727780000 }
-Server  → { "type": "pong", "timestamp": 1727780000, "serverTime": 1727780001 }`}
+{`Client → { "type": "ping", "timestamp": 1727780000 }
+Server → { "type": "pong", "timestamp": 1727780000, "serverTime": 1727780001 }`}
                   </pre>
                 </div>
 
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded">
                   <div className="font-bold text-indigo-400 mb-1">2. Room Join & Broadcast</div>
                   <pre className="text-[11px] text-slate-400 overflow-x-auto">
-{`Client  → { "type": "join_room", "roomId": "room_1", "playerId": "p1", "playerName": "Tycoon", "state": {...} }
-Server  → { "type": "room_joined", "roomId": "room_1", "playerId": "p1", "players": [...] }
-Room WS → { "type": "player_joined", "roomId": "room_1", "player": {...} }`}
+{`Client → { "type": "join_room", "roomId": "grup_1", "playerId": "p1", "playerName": "Tycoon", "state": {...} }
+Server → { "type": "room_joined", "roomId": "grup_1", "players": [...] }
+Room   → { "type": "player_joined", "roomId": "grup_1", "player": {...} }`}
                   </pre>
                 </div>
 
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded">
-                  <div className="font-bold text-indigo-400 mb-1">3. Player State Sync</div>
+                  <div className="font-bold text-indigo-400 mb-1">3. Player State Delta</div>
                   <pre className="text-[11px] text-slate-400 overflow-x-auto">
-{`Client  → { "type": "player_state", "state": { "position": 4, "cash": 1200 } }
-Room WS → { "type": "player_state", "roomId": "room_1", "playerId": "p1", "state": {...} }`}
-                  </pre>
-                </div>
-
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded">
-                  <div className="font-bold text-indigo-400 mb-1">4. Leave & Disconnect</div>
-                  <pre className="text-[11px] text-slate-400 overflow-x-auto">
-{`Client  → { "type": "leave_room" }
-Server  → { "type": "room_left", "roomId": "room_1" }
-Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
+{`Client → { "type": "player_state", "state": { "position": 4, "cash": 1200 } }
+Room   → { "type": "player_state", "roomId": "grup_1", "playerId": "p1", "state": {...} }`}
                   </pre>
                 </div>
               </div>
@@ -1013,17 +1556,17 @@ Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
           </div>
         )}
 
-        {/* TAB 3: DIAGNOSTICS & TEST WAJIB */}
+        {/* TAB: DIAGNOSTICS & TEST WAJIB */}
         {activeTab === 'diagnostics' && (
           <div className="bg-slate-900 border border-slate-800 p-4 rounded flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
                 <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                  Live Server Verification (TEST WAJIB)
+                  Verifikasi Server (TEST WAJIB)
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Executes actual end-to-end HTTP and WebSocket transactions on the running server instance.
+                  Menjalankan seluruh transaksi HTTP & WebSocket nyata pada server yang sedang aktif.
                 </p>
               </div>
 
@@ -1033,7 +1576,7 @@ Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
                 className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs py-2 px-4 rounded flex items-center gap-2 shadow transition"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${runningDiag ? 'animate-spin' : ''}`} />
-                {runningDiag ? 'Executing Live Tests...' : 'Run Test Wajib Suite'}
+                {runningDiag ? 'Menjalankan Tes Nyata...' : 'Jalankan Test Wajib'}
               </button>
             </div>
 
@@ -1055,12 +1598,12 @@ Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
                     )}
                     <span>
                       {diagnosticReport.allPassed
-                        ? 'STATUS: READY FOR WA RICH GAME (ALL TESTS PASSED)'
-                        : 'STATUS: ISSUES DETECTED'}
+                        ? 'STATUS: READY FOR WA RICH GAME (SEMUA TES BERHASIL)'
+                        : 'STATUS: BEBERAPA TES GAGAL'}
                     </span>
                   </div>
                   <div className="text-xs">
-                    {diagnosticReport.passedTests}/{diagnosticReport.totalTests} tests passed in {diagnosticReport.durationMs}ms
+                    {diagnosticReport.passedTests}/{diagnosticReport.totalTests} tes lulus dalam {diagnosticReport.durationMs}ms
                   </div>
                 </div>
 
@@ -1092,13 +1635,13 @@ Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
             ) : (
               <div className="text-center py-10 bg-slate-950 border border-slate-800 rounded">
                 <ShieldCheck className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-                <p className="text-xs text-slate-400">Click &quot;Run Test Wajib Suite&quot; to execute real verification.</p>
+                <p className="text-xs text-slate-400">Tekan tombol &quot;Jalankan Test Wajib&quot; untuk menjalankan 8 verifikasi otomatis.</p>
               </div>
             )}
           </div>
         )}
 
-        {/* TAB 4: CONSOLE CLI EMULATOR */}
+        {/* TAB: CONSOLE CLI EMULATOR */}
         {activeTab === 'console' && (
           <div className="bg-slate-900 border border-slate-800 rounded flex flex-col flex-1 overflow-hidden">
             <div className="bg-slate-950 px-4 py-2 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
@@ -1106,7 +1649,7 @@ Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
                 <Terminal className="w-4 h-4 text-emerald-400" />
                 Pterodactyl Interactive Console (Standard Input)
               </span>
-              <span>Type &quot;help&quot; for available commands</span>
+              <span>Ketik &quot;help&quot; untuk daftar perintah</span>
             </div>
 
             <div className="p-4 flex-1 overflow-y-auto font-mono text-xs text-emerald-400 space-y-3 bg-slate-950 min-h-[350px]">
@@ -1116,9 +1659,9 @@ Room WS → { "type": "player_left", "roomId": "room_1", "playerId": "p1" }`}
 ╚══════════════════════════════╝
 Status    : ONLINE
 Node      : ${serverStats?.nodeVersion || '22.x'}
-Host      : ${serverStats?.host || '0.0.0.0'}
-Port      : ${serverStats?.port || 3000}
-Public URL: ${serverStats?.publicUrl || 'Not configured'}
+Host      : 0.0.0.0
+Port      : ${serverStats?.port || 2252}
+Public URL: ${serverStats?.publicUrl || 'medium.lynzz.id:2252'}
 WS        : READY
 Clients   : ${serverStats?.clientsCount ?? 0}
 Rooms     : ${serverStats?.roomsCount ?? 0}
@@ -1147,7 +1690,7 @@ Heartbeat : OK`}
                 className="flex-1 bg-transparent text-xs text-white outline-none font-mono"
               />
               <button type="submit" className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded">
-                Execute
+                Kirim
               </button>
             </form>
           </div>
@@ -1159,11 +1702,12 @@ Heartbeat : OK`}
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-4">
             <span>RAM (RSS): <strong className="text-slate-300">{serverStats?.memory.rssMB || 0} MB</strong></span>
-            <span>Heap Used: <strong className="text-slate-300">{serverStats?.memory.heapUsedMB || 0} MB</strong></span>
-            <span>Heartbeat: <strong className="text-emerald-400">{serverStats?.heartbeatStatus || 'OK'} ({((serverStats?.heartbeatIntervalMs || 30000)/1000)}s)</strong></span>
+            <span>Heap: <strong className="text-slate-300">{serverStats?.memory.heapUsedMB || 0} MB</strong></span>
+            <span>Heartbeat: <strong className="text-emerald-400">{serverStats?.heartbeatStatus || 'OK'} (30s)</strong></span>
+            <span>Target: <strong className="text-amber-300">medium.lynzz.id:2252</strong></span>
           </div>
           <div>
-            <span>WA Rich Game Dedicated WebSocket Server • Pterodactyl Ready</span>
+            <span>WA Rich Game Dedicated WebSocket Server &bull; Pterodactyl Ready</span>
           </div>
         </div>
       </footer>

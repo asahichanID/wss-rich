@@ -1029,7 +1029,7 @@ if (process.env.SERVER_PORT && !isNaN(parseInt(process.env.SERVER_PORT, 10)) && 
   portSource = "process.env.PORT";
 }
 var host = process.env.HOST || process.env.SERVER_IP || "0.0.0.0";
-var publicUrl = process.env.APP_URL || process.env.PUBLIC_URL || "Not configured";
+var publicUrl = process.env.PUBLIC_URL || process.env.APP_URL || "medium.lynzz.id:2252";
 var heartbeatMs = process.env.HEARTBEAT_INTERVAL ? parseInt(process.env.HEARTBEAT_INTERVAL, 10) * 1e3 : process.env.HEARTBEAT_MS ? parseInt(process.env.HEARTBEAT_MS, 10) : 3e4;
 var roomManager = new RoomManager();
 var MIME_TYPES = {
