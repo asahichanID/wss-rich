@@ -323,7 +323,7 @@ export class SocketHandler {
       return false;
     }
     try {
-      ws.send(JSON.stringify(message));
+      ws.send(JSON.stringify(message), () => {});
       return true;
     } catch {
       return false;

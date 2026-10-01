@@ -65,17 +65,42 @@ Heartbeat : OK
   public startStdin(): void {
     if (this.rl) return;
 
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      terminal: false,
-    });
+    try {
+      if (!process.stdin || !process.stdin.readable) {
+        return;
+      }
 
-    this.rl.on('line', async (line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      await this.handleCommand(trimmed);
-    });
+      // Guard against EPIPE / EOF / ENOTTY in Pterodactyl / Docker
+      process.stdin.on('error', (_err) => {
+        // Suppress stdin pipe error in daemon/headless environments
+      });
+
+      this.rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        terminal: false,
+      });
+
+      this.rl.on('line', async (line) => {
+        try {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          await this.handleCommand(trimmed);
+        } catch (err: unknown) {
+          console.error('[CMD ERROR]', err instanceof Error ? err.message : String(err));
+        }
+      });
+
+      this.rl.on('error', (_err) => {
+        // Guard against readline error in Pterodactyl
+      });
+
+      this.rl.on('close', () => {
+        this.rl = null;
+      });
+    } catch {
+      // In case stdin cannot be wrapped in some Docker runtime
+    }
   }
 
   public stopStdin(): void {

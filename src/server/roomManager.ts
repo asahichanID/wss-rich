@@ -213,7 +213,7 @@ export class RoomManager {
       const client = this.clients.get(player.clientId);
       if (client && client.readyState === 1 /* OPEN */) {
         try {
-          client.send(payload);
+          client.send(payload, () => {});
           sentCount++;
         } catch {
           // ignore socket write errors; cleanup will handle disconnects
